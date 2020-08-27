@@ -2,6 +2,7 @@
 훈민정음 프로젝트는 "영어를 몰라도 코딩을 할 수 있게 하자" 라는 생각에서 출발하였습니다.
 훈민정음 프로젝트는 Python 기반으로 제작되어 있습니다. 
 훈민정음 프로젝트를 실행하려면 Python 설치가 필요합니다.
+훈민정음 프로젝트는 [py-myopl-code](https://github.com/davidcallanan/py-myopl-code/)를 기반으로 제작되었음을 밝힙니다.
 
 ## 버전
 Beta
