@@ -1,15 +1,24 @@
+#######################################
+# IMPORTS
+#######################################
+
 from strings_with_arrows import *
+
 import string
+
 import korean
-# CONST
+
+#######################################
+# CONSTANTS
+#######################################
 
 DIGITS = '0123456789'
-LETTERS_KR = '변수'
 LETTERS = string.ascii_letters + korean.minimalKR
 LETTERS_DIGITS = LETTERS + DIGITS
 
-# ERROR
-
+#######################################
+# ERRORS
+#######################################
 
 class 오류:
     def __init__(self, pos_start, pos_end, error_name, details):
@@ -19,21 +28,22 @@ class 오류:
         self.details = details
 
     def as_string(self):
-        result = f'{self.error_name}: {self.details}\n'
+        result  = f'{self.error_name}: {self.details}\n'
         result += f'파일 {self.pos_start.fn}, 라인 {self.pos_start.ln + 1}'
-        result += '\n\n' + strings_with_arrows(self.pos_end.ftxt, self.pos_start, self.pos_end)
+        result += '\n\n' + strings_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
         return result
-
 
 class 유효하지_않는_문자_오류(오류):
     def __init__(self, pos_start, pos_end, details):
         super().__init__(pos_start, pos_end, '유효하지 않는 문자 오류', details)
 
+class 예상_문자_오류(오류):
+    def __init__(self, pos_start, pos_end, details):
+        super().__init__(pos_start, pos_end, '예상 문자 오류', details)
 
 class 유효하지_않는_문법_오류(오류):
     def __init__(self, pos_start, pos_end, details=''):
         super().__init__(pos_start, pos_end, '유효하지 않는 문법 오류', details)
-
 
 class 런타임_오류(오류):
     def __init__(self, pos_start, pos_end, details, context):
@@ -41,7 +51,7 @@ class 런타임_오류(오류):
         self.context = context
 
     def as_string(self):
-        result = self.generate_traceback()
+        result  = self.generate_traceback()
         result += f'{self.error_name}: {self.details}'
         result += '\n\n' + strings_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
         return result
@@ -50,14 +60,18 @@ class 런타임_오류(오류):
         result = ''
         pos = self.pos_start
         ctx = self.context
+
         while ctx:
-            result = f' 파일 {pos.fn} 라인 {str(pos.ln + 1)}, in {ctx.display_name}\n' + result
+            result = f'  파일 {pos.fn}, 라인 {str(pos.ln + 1)}, in {ctx.display_name}\n' + result
             pos = ctx.parent_entry_pos
             ctx = ctx.parent
-        return '역추적 (최근 호출): \n' + result
 
+        return '역추적 (최근 호출):\n' + result
 
+#######################################
 # POSITION
+#######################################
+
 class Position:
     def __init__(self, idx, ln, col, fn, ftxt):
         self.idx = idx
@@ -79,25 +93,41 @@ class Position:
     def copy(self):
         return Position(self.idx, self.ln, self.col, self.fn, self.ftxt)
 
-
+#######################################
 # TOKENS
-TT_INT = '정수'
-TT_FLOAT = '소수'
-TT_IDENTIFIER = '식별자'
-TT_KEYWORD = '키워드'
-TT_PLUS = '더하기'
-TT_MINUS = '빼기'
-TT_MUL = '곱하기'
-TT_DIV = '나누기'
-TT_LPAREN = '왼쪽소괄호'
-TT_EQ = "등호"
-TT_RPAREN = '오른쪽소괄호'
-TT_POW = 'n제곱'
-TT_EOF = "EOF"
-KEYWORDS = [
-    '변수'
-]
+#######################################
 
+
+TT_INT = 'INT'
+TT_FLOAT = 'FLOAT'
+TT_IDENTIFIER = 'IDENTIFIER'
+TT_KEYWORD = 'KEYWORD'
+TT_PLUS = 'PLUS'
+TT_MINUS = 'MINUS'
+TT_MUL = 'MUL'
+TT_DIV = 'DIV'
+TT_POW = 'POW'
+TT_EQ = 'EQ'
+TT_LPAREN = 'LPAREN'
+TT_RPAREN = 'RPAREN'
+TT_EE = 'EE'
+TT_NE = 'NE'
+TT_LT = 'LT'
+TT_GT = 'GT'
+TT_LTE = 'LTE'
+TT_GTE = 'GTE'
+TT_EOF = 'EOF'
+
+KEYWORDS = [
+    '변수',
+    '그리고',
+    '또는',
+    '아니다',
+    '만약',
+    '이라면',
+    '아니고만약',
+    '아니면'
+]
 
 class Token:
     def __init__(self, type_, value=None, pos_start=None, pos_end=None):
@@ -108,6 +138,7 @@ class Token:
             self.pos_start = pos_start.copy()
             self.pos_end = pos_start.copy()
             self.pos_end.advance()
+
         if pos_end:
             self.pos_end = pos_end.copy()
 
@@ -115,12 +146,12 @@ class Token:
         return self.type == type_ and self.value == value
 
     def __repr__(self):
-        if self.value:
-            return f'{self.type}:{self.value}'
+        if self.value: return f'{self.type}:{self.value}'
         return f'{self.type}'
 
+#######################################
 # LEXER
-
+#######################################
 
 class Lexer:
     def __init__(self, fn, text):
@@ -159,15 +190,23 @@ class Lexer:
             elif self.current_char == '^':
                 tokens.append(Token(TT_POW, pos_start=self.pos))
                 self.advance()
-            elif self.current_char == '=':
-                tokens.append(Token(TT_EQ, pos_start=self.pos))
-                self.advance()
             elif self.current_char == '(':
                 tokens.append(Token(TT_LPAREN, pos_start=self.pos))
                 self.advance()
             elif self.current_char == ')':
                 tokens.append(Token(TT_RPAREN, pos_start=self.pos))
                 self.advance()
+            elif self.current_char == '!':
+                token, error = self.make_not_equals()
+                if error:
+                    return [], error
+                tokens.append(token)
+            elif self.current_char == '=':
+                tokens.append(self.make_equals())
+            elif self.current_char == '<':
+                tokens.append(self.make_less_than())
+            elif self.current_char == '>':
+                tokens.append(self.make_greater_than())
             else:
                 pos_start = self.pos.copy()
                 char = self.current_char
@@ -184,8 +223,7 @@ class Lexer:
 
         while self.current_char != None and self.current_char in DIGITS + '.':
             if self.current_char == '.':
-                if dot_count == 1:
-                    break
+                if dot_count == 1: break
                 dot_count += 1
             num_str += self.current_char
             self.advance()
@@ -198,24 +236,71 @@ class Lexer:
     def make_identifier(self):
         id_str = ''
         pos_start = self.pos.copy()
+
         while self.current_char != None and self.current_char in LETTERS_DIGITS + '_':
             id_str += self.current_char
             self.advance()
+
         tok_type = TT_KEYWORD if id_str in KEYWORDS else TT_IDENTIFIER
         return Token(tok_type, id_str, pos_start, self.pos)
 
-# Node
+    def make_not_equals(self):
+        pos_start = self.pos.copy()
+        self.advance()
 
+        if self.current_char == '=':
+            self.advance()
+            return Token(TT_NE, pos_start=pos_start, pos_end=self.pos), None
+
+        self.advance()
+        return None, 예상_문자_오류(pos_start, self.pos, "'=' (이후 '!')")
+
+    def make_equals(self):
+        tok_type = TT_EQ
+        pos_start = self.pos.copy()
+        self.advance()
+
+        if self.current_char == '=':
+            self.advance()
+            tok_type = TT_EE
+
+        return Token(tok_type, pos_start=pos_start, pos_end=self.pos)
+
+    def make_less_than(self):
+        tok_type = TT_LT
+        pos_start = self.pos.copy()
+        self.advance()
+
+        if self.current_char == '=':
+            self.advance()
+            tok_type = TT_LTE
+
+        return Token(tok_type, pos_start=pos_start, pos_end=self.pos)
+
+    def make_greater_than(self):
+        tok_type = TT_GT
+        pos_start = self.pos.copy()
+        self.advance()
+
+        if self.current_char == '=':
+            self.advance()
+            tok_type = TT_GTE
+
+        return Token(tok_type, pos_start=pos_start, pos_end=self.pos)
+
+#######################################
+# NODES
+#######################################
 
 class NumberNode:
     def __init__(self, tok):
         self.tok = tok
+
         self.pos_start = self.tok.pos_start
         self.pos_end = self.tok.pos_end
 
     def __repr__(self):
         return f'{self.tok}'
-
 
 class VarAccessNode:
     def __init__(self, var_name_tok):
@@ -224,7 +309,6 @@ class VarAccessNode:
         self.pos_start = self.var_name_tok.pos_start
         self.pos_end = self.var_name_tok.pos_end
 
-
 class VarAssignNode:
     def __init__(self, var_name_tok, value_node):
         self.var_name_tok = var_name_tok
@@ -232,7 +316,6 @@ class VarAssignNode:
 
         self.pos_start = self.var_name_tok.pos_start
         self.pos_end = self.value_node.pos_end
-
 
 class BinOpNode:
     def __init__(self, left_node, op_tok, right_node):
@@ -246,7 +329,6 @@ class BinOpNode:
     def __repr__(self):
         return f'({self.left_node}, {self.op_tok}, {self.right_node})'
 
-
 class UnaryOpNode:
     def __init__(self, op_tok, node):
         self.op_tok = op_tok
@@ -256,10 +338,19 @@ class UnaryOpNode:
         self.pos_end = node.pos_end
 
     def __repr__(self):
-        return f'{self.op_tok}, {self.node}'
+        return f'({self.op_tok}, {self.node})'
 
-# Parse
+class IfNode:
+    def __init__(self, cases, else_case):
+        self.cases = cases
+        self.else_case = else_case
 
+        self.pos_start = self.cases[0][0].pos_start
+        self.pos_end = (self.else_case or self.cases[len(self.cases) - 1][0]).pos_end
+
+#######################################
+# PARSE RESULT
+#######################################
 
 class ParseResult:
     def __init__(self):
@@ -285,6 +376,9 @@ class ParseResult:
             self.error = error
         return self
 
+#######################################
+# PARSER
+#######################################
 
 class Parser:
     def __init__(self, tokens):
@@ -303,9 +397,75 @@ class Parser:
         if not res.error and self.current_tok.type != TT_EOF:
             return res.failure(유효하지_않는_문법_오류(
                 self.current_tok.pos_start, self.current_tok.pos_end,
-                "예상 '+', '-', '*', '/', '^'"
+                "예상 '+', '-', '*', '/', '^', '==', '!=', '<', '>', <=', '>=', '그리고' or '또는'"
             ))
         return res
+
+    ###################################
+
+    def if_expr(self):
+        res = ParseResult()
+        cases = []
+        else_case = None
+
+        if not self.current_tok.matches(TT_KEYWORD, '만약'):
+            return res.failure(유효하지_않는_문법_오류(
+                self.current_tok.pos_start, self.current_tok.pos_end,
+                f"예상 '만약'"
+            ))
+
+        res.register_advancement()
+        self.advance()
+
+        condition = res.register(self.expr())
+        if res.error:
+            return res
+
+        if not self.current_tok.matches(TT_KEYWORD, '이라면'):
+            return res.failure(유효하지_않는_문법_오류(
+                self.current_tok.pos_start, self.current_tok.pos_end,
+                f"예상 '이라면'"
+            ))
+
+        res.register_advancement()
+        self.advance()
+
+        expr = res.register(self.expr())
+        if res.error:
+            return res
+        cases.append((condition, expr))
+
+        while self.current_tok.matches(TT_KEYWORD, '아니고만약'):
+            res.register_advancement()
+            self.advance()
+
+            condition = res.register(self.expr())
+            if res.error:
+                return res
+
+            if not self.current_tok.matches(TT_KEYWORD, '이라면'):
+                return res.failure(유효하지_않는_문법_오류(
+                    self.current_tok.pos_start, self.current_tok.pos_end,
+                    f"예상 '이라면'"
+                ))
+
+            res.register_advancement()
+            self.advance()
+
+            expr = res.register(self.expr())
+            if res.error:
+                return res
+            cases.append((condition, expr))
+
+        if self.current_tok.matches(TT_KEYWORD, '아니면'):
+            res.register_advancement()
+            self.advance()
+
+            else_case = res.register(self.expr())
+            if res.error:
+                return res
+
+        return res.success(IfNode(cases, else_case))
 
     def atom(self):
         res = ParseResult()
@@ -333,10 +493,19 @@ class Parser:
                 return res.success(expr)
             else:
                 return res.failure(유효하지_않는_문법_오류(
-                    self.current_tok.pos_start, self.current_tok.pos_end, "예상 ')'"
+                    self.current_tok.pos_start, self.current_tok.pos_end,
+                    "예상 ')'"
                 ))
+
+        elif tok.matches(TT_KEYWORD, '만약'):
+            if_expr = res.register(self.if_expr())
+            if res.error:
+                return res
+            return res.success(if_expr)
+
         return res.failure(유효하지_않는_문법_오류(
-            tok.pos_start, tok.pos_end, "예상 정수, 소수 '+', '-' 또는 '('"
+            tok.pos_start, tok.pos_end,
+            "예상 정수, 소수, 식별자, '+', '-', '('"
         ))
 
     def power(self):
@@ -359,15 +528,43 @@ class Parser:
     def term(self):
         return self.bin_op(self.factor, (TT_MUL, TT_DIV))
 
+    def arith_expr(self):
+        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+
+    def comp_expr(self):
+        res = ParseResult()
+
+        if self.current_tok.matches(TT_KEYWORD, '아니다'):
+            op_tok = self.current_tok
+            res.register_advancement()
+            self.advance()
+
+            node = res.register(self.comp_expr())
+            if res.error:
+                return res
+            return res.success(UnaryOpNode(op_tok, node))
+		
+        node = res.register(self.bin_op(self.arith_expr, (TT_EE, TT_NE, TT_LT, TT_GT, TT_LTE, TT_GTE)))
+		
+        if res.error:
+            return res.failure(유효하지_않는_문법_오류(
+                self.current_tok.pos_start, self.current_tok.pos_end,
+                "예상 정수, 소수, 식별자, '+', '-', '(' or '아니다'"
+            ))
+
+        return res.success(node)
+
     def expr(self):
         res = ParseResult()
+
         if self.current_tok.matches(TT_KEYWORD, '변수'):
             res.register_advancement()
             self.advance()
 
             if self.current_tok.type != TT_IDENTIFIER:
                 return res.failure(유효하지_않는_문법_오류(
-                    self.current_tok.pos_start, self.current_tok.pos_end, "예상 식별자"
+                    self.current_tok.pos_start, self.current_tok.pos_end,
+                    "예상 식별자"
                 ))
 
             var_name = self.current_tok
@@ -376,7 +573,8 @@ class Parser:
 
             if self.current_tok.type != TT_EQ:
                 return res.failure(유효하지_않는_문법_오류(
-                    self.current_tok.pos_start, self.current_tok.pos_end, "예상 '='"
+                    self.current_tok.pos_start, self.current_tok.pos_end,
+                    "예상 '='"
                 ))
 
             res.register_advancement()
@@ -386,22 +584,27 @@ class Parser:
                 return res
             return res.success(VarAssignNode(var_name, expr))
 
-        node = res.register(self.bin_op(self.term, (TT_PLUS, TT_MINUS)))
+        node = res.register(self.bin_op(self.comp_expr, ((TT_KEYWORD, '그리고'), (TT_KEYWORD, '또는'))))
+
         if res.error:
             return res.failure(유효하지_않는_문법_오류(
-                self.current_tok.pos_start, self.current_tok.pos_end, "예상 '변수', 정수, 소수, 식별자, '+', '-' 또는 '('"
+                self.current_tok.pos_start, self.current_tok.pos_end,
+                "예상 '변수', 정수, 소수, 식별자, '+', '-', '(' or '아니다'"
             ))
+
         return res.success(node)
+
+    ###################################
 
     def bin_op(self, func_a, ops, func_b=None):
         if func_b == None:
             func_b = func_a
-
         res = ParseResult()
         left = res.register(func_a())
         if res.error:
             return res
-        while self.current_tok.type in ops:
+
+        while self.current_tok.type in ops or (self.current_tok.type, self.current_tok.value) in ops:
             op_tok = self.current_tok
             res.register_advancement()
             self.advance()
@@ -409,10 +612,12 @@ class Parser:
             if res.error:
                 return res
             left = BinOpNode(left, op_tok, right)
+
         return res.success(left)
 
-# Runtime Result
-
+#######################################
+# RUNTIME RESULT
+#######################################
 
 class RuntimeResult:
     def __init__(self):
@@ -432,8 +637,9 @@ class RuntimeResult:
         self.error = error
         return self
 
-# Value
-
+#######################################
+# VALUES
+#######################################
 
 class 숫자:
     def __init__(self, value):
@@ -470,11 +676,47 @@ class 숫자:
                     '0으로 나눌 수 없습니다.',
                     self.context
                 )
+
             return 숫자(self.value / other.value).set_context(self.context), None
 
     def powed_by(self, other):
         if isinstance(other, 숫자):
             return 숫자(self.value ** other.value).set_context(self.context), None
+
+    def get_comparison_eq(self, other):
+        if isinstance(other, 숫자):
+            return 숫자(int(self.value == other.value)).set_context(self.context), None
+
+    def get_comparison_ne(self, other):
+        if isinstance(other, 숫자):
+            return 숫자(int(self.value != other.value)).set_context(self.context), None
+
+    def get_comparison_lt(self, other):
+        if isinstance(other, 숫자):
+            return 숫자(int(self.value < other.value)).set_context(self.context), None
+
+    def get_comparison_gt(self, other):
+        if isinstance(other, 숫자):
+            return 숫자(int(self.value > other.value)).set_context(self.context), None
+
+    def get_comparison_lte(self, other):
+        if isinstance(other, 숫자):
+            return 숫자(int(self.value <= other.value)).set_context(self.context), None
+
+    def get_comparison_gte(self, other):
+        if isinstance(other, 숫자):
+            return 숫자(int(self.value >= other.value)).set_context(self.context), None
+
+    def anded_by(self, other):
+        if isinstance(other, 숫자):
+            return 숫자(int(self.value and other.value)).set_context(self.context), None
+
+    def ored_by(self, other):
+        if isinstance(other, 숫자):
+            return 숫자(int(self.value or other.value)).set_context(self.context), None
+
+    def notted(self):
+        return 숫자(1 if self.value == 0 else 0).set_context(self.context), None
 
     def copy(self):
         copy = 숫자(self.value)
@@ -482,10 +724,15 @@ class 숫자:
         copy.set_context(self.context)
         return copy
 
+    def is_true(self):
+        return self.value != 0
+	
     def __repr__(self):
         return str(self.value)
-# Context
 
+#######################################
+# CONTEXT
+#######################################
 
 class Context:
     def __init__(self, display_name, parent=None, parent_entry_pos=None):
@@ -494,8 +741,9 @@ class Context:
         self.parent_entry_pos = parent_entry_pos
         self.symbol_table = None
 
-# SymbolTB
-
+#######################################
+# SYMBOL TABLE
+#######################################
 
 class SymbolTable:
     def __init__(self):
@@ -514,8 +762,9 @@ class SymbolTable:
     def remove(self, name):
         del self.symbols[name]
 
-# Interpreter
-
+#######################################
+# INTERPRETER
+#######################################
 
 class Interpreter:
     def visit(self, node, context):
@@ -524,7 +773,9 @@ class Interpreter:
         return method(node, context)
 
     def no_visit_method(self, node, context):
-        raise Exception(f'No visit_{type(node).__name__} 메서드가 정의됨.')
+        raise Exception(f'No visit_{type(node).__name__} 메서드가 정의됨')
+
+    ###################################
 
     def visit_NumberNode(self, node, context):
         return RuntimeResult().success(
@@ -539,9 +790,10 @@ class Interpreter:
         if not value:
             return res.failure(런타임_오류(
                 node.pos_start, node.pos_end,
-                f"'{var_name}' 이 정의되지 않았습니다.",
+                f"'{var_name}' 는 정의되지 않았습니다.",
                 context
             ))
+
         value = value.copy().set_pos(node.pos_start, node.pos_end)
         return res.success(value)
 
@@ -551,6 +803,7 @@ class Interpreter:
         value = res.register(self.visit(node.value_node, context))
         if res.error:
             return res
+
         context.symbol_table.set(var_name, value)
         return res.success(value)
 
@@ -573,6 +826,22 @@ class Interpreter:
             result, error = left.dived_by(right)
         elif node.op_tok.type == TT_POW:
             result, error = left.powed_by(right)
+        elif node.op_tok.type == TT_EE:
+            result, error = left.get_comparison_eq(right)
+        elif node.op_tok.type == TT_NE:
+            result, error = left.get_comparison_ne(right)
+        elif node.op_tok.type == TT_LT:
+            result, error = left.get_comparison_lt(right)
+        elif node.op_tok.type == TT_GT:
+            result, error = left.get_comparison_gt(right)
+        elif node.op_tok.type == TT_LTE:
+            result, error = left.get_comparison_lte(right)
+        elif node.op_tok.type == TT_GTE:
+            result, error = left.get_comparison_gte(right)
+        elif node.op_tok.matches(TT_KEYWORD, '그리고'):
+            result, error = left.anded_by(right)
+        elif node.op_tok.matches(TT_KEYWORD, '또는'):
+            result, error = left.ored_by(right)
 
         if error:
             return res.failure(error)
@@ -584,35 +853,65 @@ class Interpreter:
         number = res.register(self.visit(node.node, context))
         if res.error:
             return res
+
         error = None
+
         if node.op_tok.type == TT_MINUS:
             number, error = number.multed_by(숫자(-1))
+        elif node.op_tok.matches(TT_KEYWORD, '아니다'):
+            number, error = number.notted()
 
         if error:
             return res.failure(error)
         else:
             return res.success(number.set_pos(node.pos_start, node.pos_end))
 
-# RUN
+    def visit_IfNode(self, node, context):
+        res = RuntimeResult()
 
+        for condition, expr in node.cases:
+            condition_value = res.register(self.visit(condition, context))
+            if res.error:
+                return res
+
+            if condition_value.is_true():
+                expr_value = res.register(self.visit(expr, context))
+                if res.error:
+                    return res
+                return res.success(expr_value)
+
+        if node.else_case:
+            else_value = res.register(self.visit(node.else_case, context))
+            if res.error:
+                return res
+            return res.success(else_value)
+
+        return res.success(None)
+
+#######################################
+# RUN
+#######################################
 
 global_symbol_table = SymbolTable()
-global_symbol_table.set("null", 숫자(0))
-
+global_symbol_table.set("값이_비어있음", 숫자(0))
+global_symbol_table.set("거짓", 숫자(0))
+global_symbol_table.set("참", 숫자(1))
 
 def run(fn, text):
+    # Generate tokens
     lexer = Lexer(fn, text)
     tokens, error = lexer.make_tokens()
-    if error:
-        return None, error
+    if error: return None, error
 
+    # Generate AST
     parser = Parser(tokens)
     ast = parser.parse()
     if ast.error:
         return None, ast.error
 
+    # Run program
     interpreter = Interpreter()
-    context = Context('<program>')
+    context = Context('<프로그램>')
     context.symbol_table = global_symbol_table
     result = interpreter.visit(ast.node, context)
 
