@@ -4,6 +4,8 @@
 훈민정음 프로젝트를 실행하려면 Python 설치가 필요합니다.
 훈민정음 프로젝트는 [py-myopl-code](https://github.com/davidcallanan/py-myopl-code/)를 기반으로 제작되었음을 밝힙니다.
 
+**이 프로젝트는 중단되었습니다**
+
 ## 주의
 아래 목록에 포함되어 있지 않은 한글은 지원하지 않습니다.
 <details markdown="1">
